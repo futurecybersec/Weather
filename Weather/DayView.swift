@@ -9,7 +9,20 @@ import SwiftUI
 
 struct DayView: View {
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        VStack {
+            Text("17")
+                .foregroundStyle(.white)
+                .bold()
+            Image(systemName: "sun.max.fill")
+                .resizable()
+                .frame(width: 30, height: 30)
+                .symbolRenderingMode(.multicolor)
+            Text("25º")
+                .foregroundStyle(.white)
+                .bold()
+        }
+        .padding()
+        .background(.blue)
     }
 }
 

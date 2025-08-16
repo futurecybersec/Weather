@@ -8,83 +8,86 @@
 // More info and examples: https://github.com/open-meteo/sdk/tree/main/swift
 
 
-import OpenMeteoSdk
 import SwiftUI
 
 struct ContentView: View {
-    @State private var currentTemperature: String?
-    @State private var weatherData: WeatherData?
+    @State private var weather: WeatherData?
     
+    var currentTemperature: String {
+        String(Int(weather?.current.temperature_2m.rounded() ?? 99))
+    }
+    
+    var highTemperature: String {
+        String(Int(weather?.daily.temperature_2m_max.first?.rounded() ?? 99))
+    }
+    
+    var lowTemperature: String {
+        String(Int(weather?.daily.temperature_2m_min.first?.rounded() ?? 99))
+    }
     
     var body: some View {
         VStack {
-            Image(systemName: "sun.max.fill")
-                .resizable()
-                .frame(width: 100, height: 100)
-                .symbolRenderingMode(.multicolor)
-            
-                .foregroundStyle(.tint)
-            if currentTemperature != nil {
-                Text("\(currentTemperature ?? "100")º")
-                    .font(.title)
-                    .foregroundStyle(.white)
+            CurrentTempView(location: "Hinckley and Bosworth", currentTemperature: currentTemperature, weatherDescription: "Clear Skies", highTemperature: highTemperature, lowTemperature: lowTemperature)
+            Spacer()
+            Button("Debug") {
+                debugValues()
             }
+            .foregroundStyle(.red)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.blue)
         .task {
             do {
-                try await getWeather()
+                weather = try await getWeather()
+                debugValues()
+            } catch WeatherError.invalidURL {
+                print("Invalid URL")
+            } catch WeatherError.invalidResponse {
+                print("Invalid response")
+            } catch WeatherError.invalidData {
+                print("Invalid data")
             } catch {
                 print("Unexpected error")
             }
         }
     }
-    func getWeather() async throws {
-        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=52.5561&longitude=-1.3709&hourly=temperature_2m&current=temperature_2m&timezone=Europe%2FLondon&forecast_days=1&format=flatbuffers"
+    func getWeather() async throws -> WeatherData {
+
+        // This gives the actual JSON. Paste into browser to view
+        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=52.5561&longitude=-1.3709&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m&timezone=Europe%2FLondon"
+        
         
         // Convert endpoint to URL
-        guard let url = URL(string: endpoint) else { throw WeatherError.invalidURL }
+        guard let url = URL(string: endpoint) else {
+            throw WeatherError.invalidURL
+        }
         
-        // Get response using API
-        let responses = try await WeatherApiResponse.fetch(url: url)
+        let (data, response) = try await URLSession.shared.data(from: url)
         
-        // If single location, the one we want is the first in the array
-        let response = responses[0]
+        guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+            throw WeatherError.invalidResponse
+        }
         
-        // Universal Coordinated Time offset for our location
-        let utcOffsetSeconds = response.utcOffsetSeconds
-        
-        guard let hourly = response.hourly else { throw WeatherError.invalidResponse }
-
-        // Times for each hourly sample
-        let times = hourly.getDateTime(offset: utcOffsetSeconds)
-
-        guard let temps = hourly.variables(at: 0)?.values as? [Float] else {
+        // Convert JSON into WeatherData object
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode(WeatherData.self, from: data)
+        } catch {
             throw WeatherError.invalidData
         }
-
-        if let current = response.current, let tNow = current.variables(at: 0)?.value as? Float {
-            currentTemperature = tNow.formatted(.number.rounded(increment: 1.0))
-        }
         
-        let data = WeatherData(
-            hourly: .init(
-                time: times,
-                temperature2m: temps
-            )
-        )
-        
-        // Timezone '.gmt' is deliberately used.
-        // By adding 'utcOffsetSeconds' before, local-time is inferred
-        let dateFormatter = DateFormatter()
-        dateFormatter.timeZone = .gmt
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
-
-        for (i, date) in data.hourly.time.enumerated() {
-            print(dateFormatter.string(from: date))
-            print(data.hourly.temperature2m[i])
-        }
+    }
+    func debugValues() {
+        print("debugDescription: \(weather.debugDescription)")
+        print("latitude: \(weather?.latitude ?? 0)")
+        print("longitude: \(weather?.longitude ?? 0)")
+        print("generation_ms: \(weather?.generationtime_ms ?? 0)")
+        print("utc_offset_seconds: \(weather?.utc_offset_seconds ?? 0)")
+        print("timezone: \(weather?.timezone ?? "")")
+        print("timezone_abbreviation: \(weather?.timezone_abbreviation ?? "")")
+        print("elevation: \(weather?.elevation ?? 0)")
+        print("current time: \(weather?.current.time ?? "")")
+        print("current temperature: \(weather?.current.temperature_2m ?? 0)")
     }
 }
 
@@ -92,12 +95,32 @@ struct ContentView: View {
     ContentView()
 }
 
-struct WeatherData {
-    let hourly: Hourly
+struct WeatherData: Codable {
+    let latitude: Double
+    let longitude: Double
+    let generationtime_ms: Double
+    let utc_offset_seconds: Int
+    let timezone: String
+    let timezone_abbreviation: String
+    let elevation: Int
+    let current_units: CurrentUnits
+    let current: Current
+    let daily: Daily
 
-    struct Hourly {
-        let time: [Date]
-        let temperature2m: [Float]
+    struct CurrentUnits: Codable {
+        let time: String
+        let temperature_2m: String
+    }
+
+    struct Current: Codable {
+        let time: String
+        let temperature_2m: Double
+    }
+    
+    struct Daily: Codable {
+        let time: [String]
+        let temperature_2m_max: [Double]
+        let temperature_2m_min: [Double]
     }
 }
 

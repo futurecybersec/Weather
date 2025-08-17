@@ -20,8 +20,9 @@ struct CurrentTempView: View {
     var body: some View {
         VStack {
             Text("\(location)")
-            Text("\(currentTemperature)º")
-                .font(.largeTitle)
+            Text(" \(currentTemperature)º")
+                .font(.system(size: 90))
+                .fontWeight(.light)
             Text("\(weatherDescription)")
             Text("H:\(highTemperature)º L:\(lowTemperature)º")
         }

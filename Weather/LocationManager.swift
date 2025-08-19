@@ -42,7 +42,7 @@ final class LocationManager: NSObject, CLLocationManagerDelegate, ObservableObje
         }
     }
     
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {//Trigged every time authorisation status changes
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {//Triggered every time authorisation status changes
         checkLocationAuthorization()
     }
     
@@ -50,3 +50,4 @@ final class LocationManager: NSObject, CLLocationManagerDelegate, ObservableObje
         lastKnownLocation = locations.first?.coordinate
     }
 }
+

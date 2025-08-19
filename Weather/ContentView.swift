@@ -9,6 +9,11 @@
 
 // https://developer.apple.com/documentation/corelocation/converting-between-coordinates-and-user-friendly-place-names
 
+
+//TODO: Location and weather do not update after initial allow share location request. It seems to work fine after that.
+
+
+import CoreLocation
 import SwiftUI
 
 
@@ -17,6 +22,8 @@ struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var latitude: Double = 40.4167
     @State private var longitude: Double = 3.7033
+    @State private var counter = 0
+    @State private var cityName = "Yet Unknown"
     
     var currentTemperature: String {
         String(Int(weather?.current.temperature_2m.rounded() ?? 99))
@@ -51,41 +58,101 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            CurrentTempView(location: "Hinckley and Bosworth", currentTemperature: currentTemperature, weatherDescription: weatherDescription, highTemperature: highTemperature, lowTemperature: lowTemperature)
+            CurrentTempView(location: cityName, currentTemperature: currentTemperature, weatherDescription: weatherDescription, highTemperature: highTemperature, lowTemperature: lowTemperature)
             Text("Time: \(onlyTime)")
             Text("Date: \(onlyDate)")
             Text("Latitude: \(latitude)")
             Text("Longitude: \(longitude)")
-            Button("Get weather for your location") {
+            Text("Counter: \(counter)")
+            
+            Button("UPDATE LOCATION") {
                 Task {
-                    await getLocation()                    
+                    await getLocation()
                 }
             }
+            .padding()
+            
+            Button("GET WEATHER") {
+                Task {
+                    await updateWeather()
+                }
+            }
+            
+            Button("INCREASE COUNTER") {
+                counter += 1
+            }
+            
+            Button("GET CITY NAME") {
+                Task {
+                    let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude) // Los Angeles, CA
+                    
+                    if let cityName = await getCityName(for: coordinate) {
+                        print("City Name: \(cityName)")
+                        self.cityName = cityName
+                    } else {
+                        print("Could not determine city name for the given coordinates.")
+                    }
+                }
+            }
+            .padding()
             Spacer()
             Button("Debug") {
                 debugValues()
             }
             .foregroundStyle(.red)
         }
+        .task {
+            await processWeather()
+            
+        }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.blue)
-        .task {
-            do {
-                weather = try await getWeather()
-                debugValues()
-            } catch WeatherError.invalidURL {
-                print("Invalid URL")
-            } catch WeatherError.invalidResponse {
-                print("Invalid response")
-            } catch WeatherError.invalidData {
-                print("Invalid data")
-            } catch {
-                print("Unexpected error")
-            }
+    }
+    
+    func processCityName() async {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        
+        if let cityName = await getCityName(for: coordinate) {
+            print("City Name: \(cityName)")
+            self.cityName = cityName
+        } else {
+            print("Could not determine city name for the given coordinates.")
         }
     }
-    //https://api.open-meteo.com/v1/forecast?latitude=52.5561&longitude=-1.3709&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code&timezone=Europe%2FLondon
+    
+    func processWeather() async {
+        await getLocation()
+        await updateWeather()
+        await processCityName()
+        
+    }
+    // Use location manager to get latitude and longitude
+    func getLocation() async {
+        locationManager.checkLocationAuthorization()
+        
+        if let coordinate = locationManager.lastKnownLocation {
+            latitude = coordinate.latitude
+            longitude = coordinate.longitude
+        }
+    }
+    // Call the getWeather function and handle errors
+    func updateWeather() async {
+        do {
+            weather = try await getWeather()
+            debugValues()
+            print("WEATHER UPDATED 2")
+        } catch WeatherError.invalidURL {
+            print("Invalid URL 2")
+        } catch WeatherError.invalidResponse {
+            print("Invalid response 2")
+        } catch WeatherError.invalidData {
+            print("Invalid data 2")
+        } catch {
+            print("Unexpected error 2")
+        }
+    }
+    // Get weather from using API
     func getWeather() async throws -> WeatherData {
         // This gives the actual JSON. Paste into browser to view
         let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code&timezone=Europe%2FLondon"
@@ -113,15 +180,7 @@ struct ContentView: View {
     
     func debugValues() {
         print("debugDescription: \(weather.debugDescription)")
-        print("latitude: \(weather?.latitude ?? 0)")
-        print("longitude: \(weather?.longitude ?? 0)")
-        print("generation_ms: \(weather?.generationtime_ms ?? 0)")
-        print("utc_offset_seconds: \(weather?.utc_offset_seconds ?? 0)")
-        print("timezone: \(weather?.timezone ?? "")")
-        print("timezone_abbreviation: \(weather?.timezone_abbreviation ?? "")")
-        print("elevation: \(weather?.elevation ?? 0)")
-        print("current time: \(weather?.current.time ?? "")")
-        print("current temperature: \(weather?.current.temperature_2m ?? 0)")
+
     }
     
     func processTime(time: String) -> [Substring] {
@@ -129,29 +188,29 @@ struct ContentView: View {
         return dateAndTime
     }
     
-    func getLocation() async {
-        locationManager.checkLocationAuthorization()
-        if let coordinate = locationManager.lastKnownLocation {
-            latitude = coordinate.latitude
-            longitude = coordinate.longitude
-            
-            do {
-                weather = try await getWeather()
-                debugValues()
-            } catch WeatherError.invalidURL {
-                print("Invalid URL")
-            } catch WeatherError.invalidResponse {
-                print("Invalid response")
-            } catch WeatherError.invalidData {
-                print("Invalid data")
-            } catch {
-                print("Unexpected error")
+
+    //https://medium.com/@wesleymatlock/unlocking-the-power-of-cllocation-working-with-geolocation-in-swift-0d07fe73a8b8
+    func getCityName(for coordinate: CLLocationCoordinate2D) async -> String? {
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        
+        return await withCheckedContinuation { continuation in
+            CLGeocoder().reverseGeocodeLocation(location) { placemarks, error in
+                guard error == nil else {
+                    print("Error in reverse geocoding: \(error!.localizedDescription)")
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                if let placemark = placemarks?.first, let city = placemark.locality {
+                    continuation.resume(returning: city)
+                } else {
+                    continuation.resume(returning: nil)
+                }
             }
-            
-        } else {
-            print("Error on getting location")
         }
     }
+
+
 }
 
 #Preview {
@@ -223,3 +282,14 @@ let weatherInterpretationCodes: [Int: String] = [0: "Clear Sky",
                                                  96: "Thunderstorm with Slight Hail",
                                                  99: "Thunderstorm with Heavy Hail",
                                                  100: ""]
+
+
+//        print("latitude: \(weather?.latitude ?? 0)")
+//        print("longitude: \(weather?.longitude ?? 0)")
+//        print("generation_ms: \(weather?.generationtime_ms ?? 0)")
+//        print("utc_offset_seconds: \(weather?.utc_offset_seconds ?? 0)")
+//        print("timezone: \(weather?.timezone ?? "")")
+//        print("timezone_abbreviation: \(weather?.timezone_abbreviation ?? "")")
+//        print("elevation: \(weather?.elevation ?? 0)")
+//        print("current time: \(weather?.current.time ?? "")")
+//        print("current temperature: \(weather?.current.temperature_2m ?? 0)")

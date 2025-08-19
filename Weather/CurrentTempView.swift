@@ -20,11 +20,18 @@ struct CurrentTempView: View {
     var body: some View {
         VStack {
             Text("\(location)")
-            Text(" \(currentTemperature)º")
-                .font(.system(size: 90))
-                .fontWeight(.light)
+            HStack {
+                Image(systemName: "sun.max.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 90, height: 90)
+                    .symbolRenderingMode(.multicolor)
+                Text(" \(currentTemperature)º")
+                    .font(.system(size: 80))
+                    .fontWeight(.light)
+            }
             Text("\(weatherDescription)")
-            Text("H:\(highTemperature)º L:\(lowTemperature)º")
+            Text("Max: \(highTemperature)º Min: \(lowTemperature)º")
         }
         .padding(60)
         .bold()

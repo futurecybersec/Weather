@@ -31,12 +31,14 @@ struct SFSymbols: View {
                     .frame(width: 100, height: 100)
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(.white, .white)
+
                 // Light Drizzle, Moderate Drizzle, Dense Drizzle, Light Freezing Drizzle,Intense Freezing Drizzle,
                 Image(systemName: "cloud.drizzle.fill")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 100, height: 100)
                     .foregroundStyle(.white, .blue)
+                    .opacity(0.8)
                 // Slight Rain, Moderate Rain. Light Freezing Rain
                 Image(systemName: "cloud.rain.fill")
                     .resizable()
@@ -55,11 +57,17 @@ struct SFSymbols: View {
                     .scaledToFit()
                     .frame(width: 100, height: 100)
                     .foregroundStyle(.white)
+                Image(systemName: "bell.circle")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 100)
+                    .foregroundStyle(.white)
+//                    .symbolVariant(.circle)
             }
             .padding(50)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.indigo)
         }
+        .background(Color.indigo)
     }
 }
 

@@ -4,14 +4,10 @@
 //
 //  Created by Mark Darby on 11/08/2025.
 //
-// Documentation: https://open-meteo.com/
-// More info and examples: https://github.com/open-meteo/sdk/tree/main/swift
-
-// https://developer.apple.com/documentation/corelocation/converting-between-coordinates-and-user-friendly-place-names
-
+// Documentation for weather API: https://open-meteo.com/
 
 //TODO: Location and weather do not update after initial allow share location request. It seems to work fine after that.
-
+//TODO: The CLGeocoder is deprecated. Apple says use MapKit instead
 
 import CoreLocation
 import SwiftUI
@@ -64,42 +60,32 @@ struct ContentView: View {
             Text("Latitude: \(latitude)")
             Text("Longitude: \(longitude)")
             Text("Counter: \(counter)")
-            
-            Button("UPDATE LOCATION") {
-                Task {
-                    await getLocation()
-                }
-            }
-            .padding()
-            
-            Button("GET WEATHER") {
-                Task {
-                    await updateWeather()
-                }
-            }
-            
-            Button("INCREASE COUNTER") {
-                counter += 1
-            }
-            
-            Button("GET CITY NAME") {
-                Task {
-                    let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude) // Los Angeles, CA
-                    
-                    if let cityName = await getCityName(for: coordinate) {
-                        print("City Name: \(cityName)")
-                        self.cityName = cityName
-                    } else {
-                        print("Could not determine city name for the given coordinates.")
+            VStack {
+                Button("UPDATE LOCATION") {
+                    Task {
+                        await getLocation()
                     }
                 }
+                .padding()
+                Button("GET WEATHER") {
+                    Task {
+                        await updateWeather()
+                    }
+                }
+                Button("GET CITY NAME") {
+                    Task {
+                        await processCityName()
+                    }
+                }
+                .padding()
+                Button("INCREASE COUNTER") {
+                    counter += 1
+                }
             }
+            .buttonStyle(.borderedProminent)
+            .tint(.indigo)
             .padding()
             Spacer()
-            Button("Debug") {
-                debugValues()
-            }
-            .foregroundStyle(.red)
         }
         .task {
             await processWeather()
@@ -108,6 +94,13 @@ struct ContentView: View {
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.blue)
+    }
+    
+    func processWeather() async {
+        await getLocation()
+        await updateWeather()
+        await processCityName()
+        
     }
     
     func processCityName() async {
@@ -121,12 +114,6 @@ struct ContentView: View {
         }
     }
     
-    func processWeather() async {
-        await getLocation()
-        await updateWeather()
-        await processCityName()
-        
-    }
     // Use location manager to get latitude and longitude
     func getLocation() async {
         locationManager.checkLocationAuthorization()
@@ -141,15 +128,15 @@ struct ContentView: View {
         do {
             weather = try await getWeather()
             debugValues()
-            print("WEATHER UPDATED 2")
+            print("WEATHER UPDATED")
         } catch WeatherError.invalidURL {
-            print("Invalid URL 2")
+            print("Invalid URL")
         } catch WeatherError.invalidResponse {
-            print("Invalid response 2")
+            print("Invalid response")
         } catch WeatherError.invalidData {
-            print("Invalid data 2")
+            print("Invalid data")
         } catch {
-            print("Unexpected error 2")
+            print("Unexpected error")
         }
     }
     // Get weather from using API
@@ -188,8 +175,7 @@ struct ContentView: View {
         return dateAndTime
     }
     
-
-    //https://medium.com/@wesleymatlock/unlocking-the-power-of-cllocation-working-with-geolocation-in-swift-0d07fe73a8b8
+    //TODO: Upgrade to use MapKit. CLGeocoder is deprecated
     func getCityName(for coordinate: CLLocationCoordinate2D) async -> String? {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         
@@ -284,12 +270,3 @@ let weatherInterpretationCodes: [Int: String] = [0: "Clear Sky",
                                                  100: ""]
 
 
-//        print("latitude: \(weather?.latitude ?? 0)")
-//        print("longitude: \(weather?.longitude ?? 0)")
-//        print("generation_ms: \(weather?.generationtime_ms ?? 0)")
-//        print("utc_offset_seconds: \(weather?.utc_offset_seconds ?? 0)")
-//        print("timezone: \(weather?.timezone ?? "")")
-//        print("timezone_abbreviation: \(weather?.timezone_abbreviation ?? "")")
-//        print("elevation: \(weather?.elevation ?? 0)")
-//        print("current time: \(weather?.current.time ?? "")")
-//        print("current temperature: \(weather?.current.temperature_2m ?? 0)")

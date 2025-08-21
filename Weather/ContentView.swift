@@ -7,7 +7,6 @@
 // Documentation for weather API: https://open-meteo.com/
 
 //TODO: Location and weather do not update after initial allow share location request. It seems to work fine after that.
-//TODO: The CLGeocoder is deprecated. Apple says use MapKit instead
 
 import CoreLocation
 import SwiftUI
@@ -18,48 +17,33 @@ struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var latitude: Double = 40.4167
     @State private var longitude: Double = 3.7033
-    @State private var counter = 0
-    @State private var cityName = "Yet Unknown"
+    @State private var cityName = "--"
     
     var currentTemperature: String {
-        String(Int(weather?.current.temperature_2m.rounded() ?? 99))
+        String(Int(weather?.current.temperature2M.rounded() ?? 99))
     }
     
     var highTemperature: String {
-        String(Int(weather?.daily.temperature_2m_max.first?.rounded() ?? 99))
+        String(Int(weather?.daily.temperature2MMax.first?.rounded() ?? 99))
     }
     
     var lowTemperature: String {
-        String(Int(weather?.daily.temperature_2m_min.first?.rounded() ?? 99))
+        String(Int(weather?.daily.temperature2MMin.first?.rounded() ?? 99))
     }
     
     var weatherDescription: String {
-        let code = weather?.current.weather_code
+        let code = weather?.current.weatherCode
         return weatherInterpretationCodes[code ?? 100] ?? ""
         
-    }
-    
-    var onlyTime: String {
-        let originalTime = weather?.current.time ?? "2025-08-17T11:15"
-        let splitDateTime = processTime(time: originalTime)
-        return String(splitDateTime[1])
-    }
-    
-    var onlyDate: String {
-        let originalTime = weather?.current.time ?? "2025-08-17T11:15"
-        let splitDateTime = processTime(time: originalTime)
-        return String(splitDateTime[0])
     }
     
     
     var body: some View {
         VStack {
             CurrentTempView(location: cityName, currentTemperature: currentTemperature, weatherDescription: weatherDescription, highTemperature: highTemperature, lowTemperature: lowTemperature)
-            Text("Time: \(onlyTime)")
-            Text("Date: \(onlyDate)")
+            Text("\(weather?.current.time.formatted() ?? "Error")")
             Text("Latitude: \(latitude)")
             Text("Longitude: \(longitude)")
-            Text("Counter: \(counter)")
             VStack {
                 Button("UPDATE LOCATION") {
                     Task {
@@ -78,9 +62,6 @@ struct ContentView: View {
                     }
                 }
                 .padding()
-                Button("INCREASE COUNTER") {
-                    counter += 1
-                }
             }
             .buttonStyle(.borderedProminent)
             .tint(.indigo)
@@ -93,14 +74,17 @@ struct ContentView: View {
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.blue)
+        .background(
+            Image(.pexelsToddTrapani4883821535162)
+                .resizable()
+                .ignoresSafeArea()
+        )
     }
     
     func processWeather() async {
         await getLocation()
         await updateWeather()
         await processCityName()
-        
     }
     
     func processCityName() async {
@@ -142,8 +126,8 @@ struct ContentView: View {
     // Get weather from using API
     func getWeather() async throws -> WeatherData {
         // This gives the actual JSON. Paste into browser to view
-        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code&timezone=Europe%2FLondon"
-        
+        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code&timezone=GMT"
+
         // Convert endpoint to URL
         guard let url = URL(string: endpoint) else {
             throw WeatherError.invalidURL
@@ -157,7 +141,12 @@ struct ContentView: View {
         
         // Convert JSON into WeatherData object
         do {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
             let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .formatted(formatter)
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             return try decoder.decode(WeatherData.self, from: data)
         } catch {
             throw WeatherError.invalidData
@@ -167,7 +156,6 @@ struct ContentView: View {
     
     func debugValues() {
         print("debugDescription: \(weather.debugDescription)")
-
     }
     
     func processTime(time: String) -> [Substring] {
@@ -175,7 +163,6 @@ struct ContentView: View {
         return dateAndTime
     }
     
-    //TODO: Upgrade to use MapKit. CLGeocoder is deprecated
     func getCityName(for coordinate: CLLocationCoordinate2D) async -> String? {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         
@@ -195,8 +182,6 @@ struct ContentView: View {
             }
         }
     }
-
-
 }
 
 #Preview {
@@ -206,30 +191,42 @@ struct ContentView: View {
 struct WeatherData: Codable {
     let latitude: Double
     let longitude: Double
-    let generationtime_ms: Double
-    let utc_offset_seconds: Int
+    let generationtimeMs: Double
+    let utcOffsetSeconds: Int
     let timezone: String
-    let timezone_abbreviation: String
+    let timezoneAbbreviation: String
     let elevation: Int
-    let current_units: CurrentUnits
     let current: Current
     let daily: Daily
 
-    struct CurrentUnits: Codable {
-        let time: String
-        let temperature_2m: String
-    }
-
     struct Current: Codable {
-        let time: String
-        let temperature_2m: Double
-        let weather_code: Int
+        let time: Date
+        let interval: Int
+        let temperature2M: Double
+        let weatherCode: Int
     }
     
     struct Daily: Codable {
-        let time: [String]
-        let temperature_2m_max: [Double]
-        let temperature_2m_min: [Double]
+        let time: [Date]
+        let temperature2MMax: [Double]
+        let temperature2MMin: [Double]
+        
+        // Custom decoding for the different date format
+        private enum CodingKeys: String, CodingKey {
+            case time, temperature2MMax, temperature2MMin
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let timeStrings = try container.decode([String].self, forKey: .time)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            self.time = timeStrings.compactMap { formatter.date(from: $0) }
+
+            self.temperature2MMax = try container.decode([Double].self, forKey: .temperature2MMax)
+            self.temperature2MMin = try container.decode([Double].self, forKey: .temperature2MMin)
+        }
     }
 }
 

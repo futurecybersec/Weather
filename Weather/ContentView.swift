@@ -12,6 +12,12 @@ import CoreLocation
 import SwiftUI
 
 
+struct HourlyMeasurement {
+    let time: Date
+    let temp: Double
+}
+
+
 struct ContentView: View {
     @State private var weather: WeatherData?
     @StateObject private var locationManager = LocationManager()
@@ -19,54 +25,75 @@ struct ContentView: View {
     @State private var longitude: Double = 3.7033
     @State private var cityName = "--"
     
-    var currentTemperature: String {
-        String(Int(weather?.current.temperature2M.rounded() ?? 99))
+
+    let forecastDays = 1
+    
+    var currentTemperature: Int {
+        Int(weather?.current.temperature2M.rounded() ?? 99)
     }
     
-    var highTemperature: String {
+    var CurrentHighTemperature: String {
         String(Int(weather?.daily.temperature2MMax.first?.rounded() ?? 99))
     }
     
-    var lowTemperature: String {
+    var CurrentLowTemperature: String {
         String(Int(weather?.daily.temperature2MMin.first?.rounded() ?? 99))
     }
     
-    var weatherDescription: String {
+    var CurrentWeatherDescription: String {
         let code = weather?.current.weatherCode
         return weatherInterpretationCodes[code ?? 100] ?? ""
-        
     }
     
+    var timeAndTemps: [HourlyMeasurement] {
+        guard let times = weather?.hourly.time, let temps = weather?.hourly.temperature2M else {
+            return []
+        }
+        return Array(zip(times, temps)).map { HourlyMeasurement(time: $0.0, temp: $0.1) }
+    }
+    
+    var timeAndTempsFromNowOn: [HourlyMeasurement] {
+        var hourlyMeasurement: [HourlyMeasurement] = []
+        let now = Date.now
+        for i in timeAndTemps {
+            if i.time > now {
+                hourlyMeasurement.append(i)
+            }
+        }
+        return hourlyMeasurement
+    }
     
     var body: some View {
         VStack {
-            CurrentTempView(location: cityName, currentTemperature: currentTemperature, weatherDescription: weatherDescription, highTemperature: highTemperature, lowTemperature: lowTemperature)
-            Text("\(weather?.current.time.formatted() ?? "Error")")
-            Text("Latitude: \(latitude)")
-            Text("Longitude: \(longitude)")
+            CurrentTempView(cityName: cityName, currentTemperature: currentTemperature, CurrentWeatherDescription: CurrentWeatherDescription, CurrentHighTemperature: CurrentHighTemperature, CurrentLowTemperature: CurrentLowTemperature)
             VStack {
-                Button("UPDATE LOCATION") {
-                    Task {
-                        await getLocation()
+                ScrollView(.horizontal) {
+                    HStack(spacing: 0) {
+                        HourlyView(hour: "Now", hourlyTemp: currentTemperature)
+                        
+                        ForEach(timeAndTempsFromNowOn, id: \.time) { hourly in
+                            HourlyView(hour: hourly.time.formatted(date: .omitted, time: .shortened), hourlyTemp: Int(hourly.temp.rounded()))
+                        }
                     }
                 }
-                .padding()
-                Button("GET WEATHER") {
-                    Task {
-                        await updateWeather()
-                    }
-                }
-                Button("GET CITY NAME") {
-                    Task {
-                        await processCityName()
-                    }
-                }
-                .padding()
+                .scrollIndicators(.hidden)
+                .frame(maxWidth: .infinity)
+                
+            }
+            .background(.brown)
+            .clipShape(.rect(cornerRadius: 20))
+            .padding()
+            
+            Spacer()
+            
+            VStack {
+                Text("\(weather?.current.time.formatted() ?? "Error")")
+                Text("Latitude: \(latitude)")
+                Text("Longitude: \(longitude)")
             }
             .buttonStyle(.borderedProminent)
-            .tint(.indigo)
+            .tint(.brown)
             .padding()
-            Spacer()
         }
         .task {
             await processWeather()
@@ -91,7 +118,6 @@ struct ContentView: View {
         let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         
         if let cityName = await getCityName(for: coordinate) {
-            print("City Name: \(cityName)")
             self.cityName = cityName
         } else {
             print("Could not determine city name for the given coordinates.")
@@ -112,7 +138,6 @@ struct ContentView: View {
         do {
             weather = try await getWeather()
             debugValues()
-            print("WEATHER UPDATED")
         } catch WeatherError.invalidURL {
             print("Invalid URL")
         } catch WeatherError.invalidResponse {
@@ -126,8 +151,7 @@ struct ContentView: View {
     // Get weather from using API
     func getWeather() async throws -> WeatherData {
         // This gives the actual JSON. Paste into browser to view
-        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code&timezone=GMT"
-
+        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m&current=temperature_2m,weather_code&timezone=GMT&forecast_days=\(forecastDays)"
         // Convert endpoint to URL
         guard let url = URL(string: endpoint) else {
             throw WeatherError.invalidURL
@@ -197,6 +221,7 @@ struct WeatherData: Codable {
     let timezoneAbbreviation: String
     let elevation: Int
     let current: Current
+    let hourly: Hourly
     let daily: Daily
 
     struct Current: Codable {
@@ -204,6 +229,11 @@ struct WeatherData: Codable {
         let interval: Int
         let temperature2M: Double
         let weatherCode: Int
+    }
+    
+    struct Hourly: Codable {
+        let time: [Date]
+        let temperature2M: [Double]
     }
     
     struct Daily: Codable {
@@ -219,10 +249,10 @@ struct WeatherData: Codable {
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let timeStrings = try container.decode([String].self, forKey: .time)
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            self.time = timeStrings.compactMap { formatter.date(from: $0) }
+            let formatterDaily = DateFormatter()
+            formatterDaily.dateFormat = "yyyy-MM-dd"
+            formatterDaily.timeZone = TimeZone(secondsFromGMT: 0)
+            self.time = timeStrings.compactMap { formatterDaily.date(from: $0) }
 
             self.temperature2MMax = try container.decode([Double].self, forKey: .temperature2MMax)
             self.temperature2MMin = try container.decode([Double].self, forKey: .temperature2MMin)
@@ -240,6 +270,7 @@ enum WeatherError: Error {
 let weatherInterpretationCodes: [Int: String] = [0: "Clear Sky",
                                                  1: "Mainly Clear",
                                                  2: "Partly Cloudy",
+                                                 3: "Overcast",
                                                  45: "Fog",
                                                  48: "Fog",
                                                  51: "Light Drizzle",
@@ -265,5 +296,3 @@ let weatherInterpretationCodes: [Int: String] = [0: "Clear Sky",
                                                  96: "Thunderstorm with Slight Hail",
                                                  99: "Thunderstorm with Heavy Hail",
                                                  100: ""]
-
-

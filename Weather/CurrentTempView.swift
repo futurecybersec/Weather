@@ -10,38 +10,47 @@ import CoreLocationUI
 import SwiftUI
 
 struct CurrentTempView: View {
-    
-    let location: String
-    let currentTemperature: String
-    let weatherDescription: String
-    let highTemperature: String
-    let lowTemperature: String
+    let cityName: String
+    let currentTemperature: Int
+    let CurrentWeatherDescription: String
+    let CurrentHighTemperature: String
+    let CurrentLowTemperature: String
     
     var body: some View {
         VStack {
-            Text("\(location)")
-            HStack {
-                Image(systemName: "sun.max.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 90, height: 90)
-                    .symbolRenderingMode(.multicolor)
-                Text(" \(currentTemperature)º")
-                    .font(.system(size: 80))
-                    .fontWeight(.light)
-            }
-            Text("\(weatherDescription)")
-            Text("Max: \(highTemperature)º Min: \(lowTemperature)º")
+            Text("\(cityName)")
+            Label("\(currentTemperature)", systemImage: "sun.max.fill")
+                .font(.system(size: 80))
+                .fontWeight(.light)
+                .symbolRenderingMode(.multicolor)
+            Text("\(CurrentWeatherDescription)")
+            Text("Max: \(CurrentHighTemperature)º Min: \(CurrentLowTemperature)º")
         }
-        .padding(60)
+        .padding(50)
         .bold()
+        .shadow(radius: 5)
         .foregroundStyle(.white)
     }
 }
 
 #Preview {
-    CurrentTempView(location: "Hinckley and Bosworth", currentTemperature: "23", weatherDescription: "Sunny", highTemperature: "28", lowTemperature: "18")
-        .background(.blue)
+    CurrentTempView(cityName: "Hinckley", currentTemperature: 23, CurrentWeatherDescription: "Sunny", CurrentHighTemperature: "28", CurrentLowTemperature: "18")
+        .background(
+            Image(.pexelsToddTrapani4883821535162)
+                .resizable()
+        )
+
+    Spacer()
 }
 
 
+//HStack {
+//    Image(systemName: "sun.max.fill")
+//        .resizable()
+//        .scaledToFit()
+//        .frame(width: 90, height: 90)
+//        .symbolRenderingMode(.multicolor)
+//    Text(" \(currentTemperature)º")
+//        .font(.system(size: 80))
+//        .fontWeight(.light)
+//}

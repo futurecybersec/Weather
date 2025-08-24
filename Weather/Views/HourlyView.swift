@@ -7,23 +7,24 @@
 
 import SwiftUI
 
-struct HourlyView: View {
-    
+struct HourlyView<Symbol: View>: View {
+    let hourlySymbol: Symbol
     let hour: String
     let hourlyTemp: Int
     
     var body: some View {
-        VStack(spacing: 15) {
+        VStack {
             Text("\(hour)")
-            Image(systemName: "cloud.fill")
+            hourlySymbol
             Text("\(hourlyTemp)º")
         }
-        .foregroundStyle(.white)
+        .frame(maxHeight: 90)
         .padding()
+        .foregroundStyle(.white)
         .background(.brown)
     }
 }
 
 #Preview {
-    HourlyView(hour: "19", hourlyTemp: 18)
+    HourlyView(hourlySymbol: sunnySmall, hour: "19", hourlyTemp: 18)
 }

@@ -10,15 +10,12 @@
 
 //TODO: Have a different background picture depending on weather
 
+//TODO: Change weather symbols for night time
+
 import CoreLocation
 import SwiftUI
 
 
-struct HourlyMeasurement {
-    let time: Date
-    let temp: Double
-    let weatherCode: Int
-}
 
 
 
@@ -32,8 +29,8 @@ struct ContentView: View {
 
     let forecastDays = 3
     
-    var currentTemperature: Int {
-        Int(weather?.current.temperature2M.rounded() ?? 99)
+    var currentTemperature: String {
+        String(Int(weather?.current.temperature2M.rounded() ?? 99))
     }
     
     var currentHighTemperature: String {
@@ -46,27 +43,13 @@ struct ContentView: View {
     
     var currentWeatherDescription: String {
         let code = weather?.current.weatherCode ?? 0
-        return weatherInterpretationCodes[code]?.first as? String ?? ""
+        return weatherInterpretationCodes2[code]?.first ?? ""
     }
     
-    var currentWeatherSymbol: AnyView {
+    var currentWeatherSymbolSmall: String {
         let code = weather?.current.weatherCode ?? 0
-        if let symbol = weatherInterpretationCodes[code]?[1] as? AnyView {
-            return symbol
-        } else {
-            return AnyView(sunny) // fallback, wrapped in AnyView
-        }
+        return weatherInterpretationCodes2[code]?[1] ?? "sun.max.fill"
     }
-    
-    var currentWeatherSymbolSmall: AnyView {
-        let code = weather?.current.weatherCode ?? 0
-        if let symbol = weatherInterpretationCodes[code]?[2] as? AnyView {
-            return symbol
-        } else {
-            return AnyView(sunny) // fallback, wrapped in AnyView
-        }
-    }
-    
     
     var timeAndTemps: [HourlyMeasurement] {
         var hourlyMeasurements: [HourlyMeasurement] = []
@@ -94,21 +77,24 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            CurrentTempView(symbol: currentWeatherSymbol, cityName: cityName, currentTemperature: currentTemperature, CurrentWeatherDescription: currentWeatherDescription, CurrentHighTemperature: currentHighTemperature, CurrentLowTemperature: currentLowTemperature)
+            CurrentTemperatureView(cityName: cityName, currentTemperature: currentTemperature, currentWeatherDescription: currentWeatherDescription, currentHighTemperature: currentHighTemperature, currentLowTemperature: currentLowTemperature)
             VStack {
                 ScrollView(.horizontal) {
                     HStack(spacing: 0) {
-                        HourlyView(hourlySymbol: currentWeatherSymbolSmall, hour: "Now", hourlyTemp: currentTemperature)
-                        //TODO: Tidy up below code
-                        //TODO: Time and Temp text do not line up when weather symbols are different
+                        HourlyView(image: currentWeatherSymbolSmall, hour: "Now", hourlyTemperature: currentTemperature)
+                        
                         ForEach(timeAndTempsFromNowOn, id: \.time) { hourly in
-                            HourlyView(hourlySymbol: weatherInterpretationCodes[hourly.weatherCode]?[2] as? AnyView, hour: hourly.time.formatted(date: .omitted, time: .shortened), hourlyTemp: Int(hourly.temp.rounded()))
+                            
+                            let image = weatherInterpretationCodes2[hourly.weatherCode]?[1] ?? "sun.max.fill"
+                            let hour = hourly.time.formatted(date: .omitted, time: .shortened)
+                            let hourlyTemperature = String(hourly.temp.rounded())
+                            
+                            HourlyView(image: image, hour: hour, hourlyTemperature: hourlyTemperature)
                         }
                     }
-                }// weatherInterpretationCodes[hourly.weatherCode]?[2]
+                }
                 .scrollIndicators(.hidden)
                 .frame(maxWidth: .infinity)
-                
             }
             .background(.brown)
             .clipShape(.rect(cornerRadius: 20))
@@ -244,17 +230,12 @@ enum WeatherError: Error {
     case invalidData
 }
 
+struct HourlyMeasurement {
+    let time: Date
+    let temp: Double
+    let weatherCode: Int
+}
+
 #Preview {
     ContentView()
 }
-
-
-
-
-
-
-
-//        guard let times = weather?.hourly.time, let temps = weather?.hourly.temperature2M else {
-//            return []
-//        }
-//        return Array(zip(times, temps)).map { HourlyMeasurement(time: $0.0, temp: $0.1) }

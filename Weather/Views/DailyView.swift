@@ -34,7 +34,7 @@ struct DailyView: View {
         .bold()
         .foregroundStyle(.white)
         .padding()
-        .background(.blue)
+        .background(.brown)
     }
 }
 

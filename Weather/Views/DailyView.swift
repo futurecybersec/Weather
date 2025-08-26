@@ -8,36 +8,38 @@
 import SwiftUI
 
 struct DailyView: View {
+    let day: String
+    let minTemperature: String
+    let maxTemperature: String
+    let weatherSymbol: String
     
-    let minTemperature: Double
-    let maxTemperature: Double
     
-    var RoundedMinTemperature: String {
-        String(Int(minTemperature.rounded()))+"º"
-    }
-    
-    var RoundedMaxTemperature: String {
-        String(Int(maxTemperature.rounded()))+"º"
-    }
+//    var roundedMinTemperature: String {
+//        String(Int(minTemperature.rounded()))+"º"
+//    }
+//    
+//    var roundedMaxTemperature: String {
+//        String(Int(maxTemperature.rounded()))+"º"
+//    }
     
     
     var body: some View {
         HStack {
-            Text("Today")
-            Image(systemName: "sun.max.fill")
-                .resizable()
-                .frame(width: 30, height: 30)
+            Text(day)
+            Image(systemName: weatherSymbol)
+                .font(.system(size: 20))
                 .symbolRenderingMode(.multicolor)
-            Text(RoundedMinTemperature)
-            Text(RoundedMaxTemperature)
+            Text("L:\(minTemperature)º")
+            Spacer()
+            Text("H:\(maxTemperature)º")
         }
-        .bold()
+        .frame(maxWidth: 335)
         .foregroundStyle(.white)
-        .padding()
+        .padding(8)
         .background(.brown)
     }
 }
 
 #Preview {
-    DailyView(minTemperature: 17.2, maxTemperature: 28.9)
+    DailyView(day: "Today", minTemperature: "17", maxTemperature: "28", weatherSymbol: "sun.max.fill")
 }

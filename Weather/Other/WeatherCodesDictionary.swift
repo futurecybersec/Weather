@@ -8,7 +8,7 @@
 import Foundation
 
 
-let weatherInterpretationCodes2: [Int: [String]] = [0: ["Clear Sky", "sun.max.fill"],
+let weatherInterpretationCodes: [Int: [String]] = [0: ["Clear Sky", "sun.max.fill"],
                                                  1: ["Mainly Clear", "sun.max.fill"],
                                                  2: ["Partly Cloudy", "cloud.sun.fill"],
                                                  3: ["Overcast", "cloud.fill"],

@@ -12,22 +12,28 @@
 
 //TODO: Change weather symbols for night time
 
+//TODO: Add DailyView to ContentView
+
+//TODO: Symbols in HourlyView still don't line up perfectly
+
+//TODO: Experiment with symbol animations
+
 import CoreLocation
 import SwiftUI
 
 
 
-
-
-struct ContentView: View {
+struct MainView: View {
     @State private var weather: WeatherData?
     @StateObject private var locationManager = LocationManager()
     @State private var latitude: Double = 40.4167
     @State private var longitude: Double = 3.7033
     @State private var cityName = "--"
+    @State private var isNight = false
+    
     
 
-    let forecastDays = 3
+    let forecastDays = 10
     
     var currentTemperature: String {
         String(Int(weather?.current.temperature2M.rounded() ?? 99))
@@ -43,12 +49,18 @@ struct ContentView: View {
     
     var currentWeatherDescription: String {
         let code = weather?.current.weatherCode ?? 0
-        return weatherInterpretationCodes2[code]?.first ?? ""
+        return weatherInterpretationCodes[code]?.first ?? ""
     }
     
     var currentWeatherSymbolSmall: String {
         let code = weather?.current.weatherCode ?? 0
-        return weatherInterpretationCodes2[code]?[1] ?? "sun.max.fill"
+        return weatherInterpretationCodes[code]?[1] ?? "sun.max.fill"
+    }
+    
+    struct HourlyMeasurement {
+        let time: Date
+        let temp: Double
+        let weatherCode: Int
     }
     
     var timeAndTemps: [HourlyMeasurement] {
@@ -75,6 +87,26 @@ struct ContentView: View {
         return hourlyMeasurements
     }
     
+    struct DailyMeasurement {
+        let time: Date
+        let minTemperature: Double
+        let maxTemperature: Double
+        let weatherCode: Int
+    }
+    
+    var dailyMeasurements: [DailyMeasurement] {
+        var daily: [DailyMeasurement] = []
+        guard let times = weather?.daily.time, let minTemperatures = weather?.daily.temperature2MMin, let maxTemperatures = weather?.daily.temperature2MMax, let weatherCodes = weather?.daily.weatherCode else { return [] }
+        for (i, time) in times.enumerated() {
+            let minTemperature = minTemperatures[i]
+            let maxTemperature = maxTemperatures[i]
+            let weatherCode = weatherCodes[i]
+            let dailyMeasurement = DailyMeasurement(time: time, minTemperature: minTemperature, maxTemperature: maxTemperature, weatherCode: weatherCode)
+            daily.append(dailyMeasurement)
+        }
+        return daily
+    }
+    
     var body: some View {
         VStack {
             CurrentTemperatureView(cityName: cityName, currentTemperature: currentTemperature, currentWeatherDescription: currentWeatherDescription, currentHighTemperature: currentHighTemperature, currentLowTemperature: currentLowTemperature)
@@ -84,10 +116,10 @@ struct ContentView: View {
                         HourlyView(image: currentWeatherSymbolSmall, hour: "Now", hourlyTemperature: currentTemperature)
                         
                         ForEach(timeAndTempsFromNowOn, id: \.time) { hourly in
-                            
-                            let image = weatherInterpretationCodes2[hourly.weatherCode]?[1] ?? "sun.max.fill"
+                            //TODO: Move this logic to timeAndTempsFromNowOn or timeAndTemps
+                            let image = weatherInterpretationCodes[hourly.weatherCode]?[1] ?? "sun.max.fill"
                             let hour = hourly.time.formatted(date: .omitted, time: .shortened)
-                            let hourlyTemperature = String(hourly.temp.rounded())
+                            let hourlyTemperature = String(Int(hourly.temp.rounded()))
                             
                             HourlyView(image: image, hour: hour, hourlyTemperature: hourlyTemperature)
                         }
@@ -99,6 +131,20 @@ struct ContentView: View {
             .background(.brown)
             .clipShape(.rect(cornerRadius: 20))
             .padding()
+            
+            VStack(spacing: 0) {
+                ForEach(dailyMeasurements, id: \.time) { dailyMeasurement in
+                    //TODO: Move this logic to var dailyMeasurements
+                    let minTemperature = String(Int(dailyMeasurement.minTemperature.rounded()))
+                    let maxTemperature = String(Int(dailyMeasurement.maxTemperature.rounded()))
+                    let weatherSymbol = weatherInterpretationCodes[dailyMeasurement.weatherCode]?[1] ?? "sun.fill.max"
+                    let day = dailyMeasurement.time.formatted(.dateTime.weekday(.abbreviated))
+                    
+                    DailyView(day: day, minTemperature: minTemperature, maxTemperature: maxTemperature, weatherSymbol: weatherSymbol)
+                }
+            }
+            .clipShape(.rect(cornerRadius: 20))
+
             
             Spacer()
             
@@ -163,11 +209,11 @@ struct ContentView: View {
         } catch {
             print("Unexpected error")
         }
-    }//https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&daily=temperature_2m_min,temperature_2m_max&hourly=temperature_2m,weather_code&current=temperature_2m,weather_code&timezone=GMT&forecast_days=3
+    }
     // Get weather from using API
     func getWeather() async throws -> WeatherData {
         // This gives the actual JSON. Paste into browser to view
-        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&current=temperature_2m,weather_code&timezone=GMT&forecast_days=\(forecastDays)"
+        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code&hourly=temperature_2m,weather_code&current=temperature_2m,weather_code&timezone=GMT&forecast_days=\(forecastDays)"
         // Convert endpoint to URL
         guard let url = URL(string: endpoint) else {
             throw WeatherError.invalidURL
@@ -188,7 +234,20 @@ struct ContentView: View {
             decoder.dateDecodingStrategy = .formatted(formatter)
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             return try decoder.decode(WeatherData.self, from: data)
+        } catch DecodingError.keyNotFound(let key, let context) {
+            print("Failed to decode due to missing key '\(key.stringValue)' – \(context.debugDescription)")
+            throw WeatherError.invalidData
+        } catch DecodingError.typeMismatch(_, let context) {
+            print("Failed to decode due to type mismatch – \(context.debugDescription)")
+            throw WeatherError.invalidData
+        } catch DecodingError.valueNotFound(let type, let context) {
+            print("Failed to decode to missing \(type) value – \(context.debugDescription)")
+            throw WeatherError.invalidData
+        } catch DecodingError.dataCorrupted(_) {
+            print("Failed to decode because it appears to be invalid JSON.")
+            throw WeatherError.invalidData
         } catch {
+            print("Failed to decode: \(error.localizedDescription)")
             throw WeatherError.invalidData
         }
         
@@ -230,12 +289,40 @@ enum WeatherError: Error {
     case invalidData
 }
 
-struct HourlyMeasurement {
-    let time: Date
-    let temp: Double
-    let weatherCode: Int
-}
+
+
+
 
 #Preview {
-    ContentView()
+    MainView()
 }
+
+//let dummyData = [HourlyMeasurement(time: Date.now, temp: 25.5, weatherCode: 0),
+//                 HourlyMeasurement(time: Date.now + 1, temp: 25.5, weatherCode: 2),
+//                 HourlyMeasurement(time: Date.now + 2, temp: 25.5, weatherCode: 3),
+//                 HourlyMeasurement(time: Date.now + 3, temp: 25.5, weatherCode: 45),
+//                 HourlyMeasurement(time: Date.now + 4, temp: 25.5, weatherCode: 51),
+//                 HourlyMeasurement(time: Date.now + 5, temp: 25.5, weatherCode: 61),
+//                 HourlyMeasurement(time: Date.now + 6, temp: 25.5, weatherCode: 65),
+//                 HourlyMeasurement(time: Date.now + 7, temp: 25.5, weatherCode: 71),
+//                 HourlyMeasurement(time: Date.now + 8, temp: 25.5, weatherCode: 95)]
+
+
+// Below code is for playing around with spacing so text aligns
+//            VStack {
+//                ScrollView(.horizontal) {
+//                    HStack(spacing: 0) {
+//                        ForEach(dummyData, id: \.time) { hourly in
+//
+//                            let image = weatherInterpretationCodes2[hourly.weatherCode]?[1] ?? "sun.max.fill"
+//                            let hour = hourly.time.formatted(date: .omitted, time: .shortened)
+//                            let hourlyTemperature = String(Int(hourly.temp.rounded()))
+//
+//                            HourlyView(image: image, hour: hour, hourlyTemperature: hourlyTemperature)
+//                        }
+//                    }
+//                }
+//                .scrollIndicators(.hidden)
+//                .frame(maxWidth: .infinity)
+//            }
+//            .background(.brown)

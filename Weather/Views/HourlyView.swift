@@ -42,7 +42,8 @@ struct HourlyView: View {
                 .bold()
         }
         .frame(maxHeight: 90)
-        .padding()
+        .padding(.vertical, 6)
+        .padding(.horizontal, 2)
     }
 }
 

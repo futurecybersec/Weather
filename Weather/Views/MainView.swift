@@ -12,15 +12,12 @@
 
 //TODO: Change weather symbols for night time
 
-//TODO: Add DailyView to ContentView
-
 //TODO: Symbols in HourlyView still don't line up perfectly
 
 //TODO: Experiment with symbol animations
 
 import CoreLocation
 import SwiftUI
-
 
 
 struct MainView: View {
@@ -31,7 +28,7 @@ struct MainView: View {
     @State private var cityName = "--"
     @State private var isNight = false
     
-    
+    let color = Color(red: 0.365, green: 0.459, blue: 0.478, opacity: 0.9)
 
     let forecastDays = 10
     
@@ -59,27 +56,41 @@ struct MainView: View {
     
     struct HourlyMeasurement {
         let time: Date
-        let temp: Double
+        let temperature: Double
         let weatherCode: Int
+        
+        // Only display the hour 24 format
+        var formattedTime: String {
+            time.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)))
+        }
+        
+        var formattedTemperature: String {
+            String(Int(temperature.rounded()))
+        }
+        
+        var weatherSymbol: String {
+            weatherInterpretationCodes[weatherCode]?[1] ?? "sun.max.fill"
+        }
     }
     
-    var timeAndTemps: [HourlyMeasurement] {
+    
+    var timeAndTemperatures: [HourlyMeasurement] {
         var hourlyMeasurements: [HourlyMeasurement] = []
         
         guard let times = weather?.hourly.time, let temps = weather?.hourly.temperature2M, let codes = weather?.hourly.weatherCode else { return [] }
         for (i, time) in times.enumerated() {
             let temp = temps[i]
             let code = codes[i]
-            let hourlyMeasurement = HourlyMeasurement(time: time, temp: temp, weatherCode: code)
+            let hourlyMeasurement = HourlyMeasurement(time: time, temperature: temp, weatherCode: code)
             hourlyMeasurements.append(hourlyMeasurement)
         }
         return hourlyMeasurements
     }
     
-    var timeAndTempsFromNowOn: [HourlyMeasurement] {
+    var timeAndTemperaturesFromNowOn: [HourlyMeasurement] {
         var hourlyMeasurements: [HourlyMeasurement] = []
         let now = Date.now
-        for i in timeAndTemps {
+        for i in timeAndTemperatures {
             if i.time > now {
                 hourlyMeasurements.append(i)
             }
@@ -92,6 +103,22 @@ struct MainView: View {
         let minTemperature: Double
         let maxTemperature: Double
         let weatherCode: Int
+        
+        var day: String {
+            time.formatted(.dateTime.weekday(.abbreviated))
+        }
+        
+        var formattedMinTemperature: String {
+            String(Int(minTemperature.rounded()))
+        }
+        
+        var formattedMaxTemperature: String {
+            String(Int(maxTemperature.rounded()))
+        }
+        
+        var weatherSymbol: String {
+            weatherInterpretationCodes[weatherCode]?[1] ?? "sun.fill.max"
+        }
     }
     
     var dailyMeasurements: [DailyMeasurement] {
@@ -108,63 +135,63 @@ struct MainView: View {
     }
     
     var body: some View {
-        VStack {
-            CurrentTemperatureView(cityName: cityName, currentTemperature: currentTemperature, currentWeatherDescription: currentWeatherDescription, currentHighTemperature: currentHighTemperature, currentLowTemperature: currentLowTemperature)
             VStack {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 0) {
-                        HourlyView(image: currentWeatherSymbolSmall, hour: "Now", hourlyTemperature: currentTemperature)
-                        
-                        ForEach(timeAndTempsFromNowOn, id: \.time) { hourly in
-                            //TODO: Move this logic to timeAndTempsFromNowOn or timeAndTemps
-                            let image = weatherInterpretationCodes[hourly.weatherCode]?[1] ?? "sun.max.fill"
-                            let hour = hourly.time.formatted(date: .omitted, time: .shortened)
-                            let hourlyTemperature = String(Int(hourly.temp.rounded()))
-                            
-                            HourlyView(image: image, hour: hour, hourlyTemperature: hourlyTemperature)
+                CurrentTemperatureView(cityName: cityName, currentTemperature: currentTemperature, currentWeatherDescription: currentWeatherDescription, currentHighTemperature: currentHighTemperature, currentLowTemperature: currentLowTemperature)
+                ScrollView {
+                VStack {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 0) {
+                            Spacer(minLength: 4)
+                            HourlyView(weatherSymbol: currentWeatherSymbolSmall, hour: "Now", hourlyTemperature: currentTemperature)
+                            ForEach(timeAndTemperaturesFromNowOn, id: \.time) { hourlyMeasurement in
+                                HourlyView(weatherSymbol: hourlyMeasurement.weatherSymbol, hour: hourlyMeasurement.formattedTime, hourlyTemperature: hourlyMeasurement.formattedTemperature)
+                            }
                         }
                     }
+                    .scrollIndicators(.hidden)
+                    .frame(maxWidth: .infinity)
                 }
-                .scrollIndicators(.hidden)
-                .frame(maxWidth: .infinity)
-            }
-            .background(.brown)
-            .clipShape(.rect(cornerRadius: 20))
-            .padding()
-            
-            VStack(spacing: 0) {
-                ForEach(dailyMeasurements, id: \.time) { dailyMeasurement in
-                    //TODO: Move this logic to var dailyMeasurements
-                    let minTemperature = String(Int(dailyMeasurement.minTemperature.rounded()))
-                    let maxTemperature = String(Int(dailyMeasurement.maxTemperature.rounded()))
-                    let weatherSymbol = weatherInterpretationCodes[dailyMeasurement.weatherCode]?[1] ?? "sun.fill.max"
-                    let day = dailyMeasurement.time.formatted(.dateTime.weekday(.abbreviated))
+                .frame(maxWidth: 350)
+                .background(color)
+                .clipShape(.rect(cornerRadius: 10))
                     
-                    DailyView(day: day, minTemperature: minTemperature, maxTemperature: maxTemperature, weatherSymbol: weatherSymbol)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Label("10-DAY FORECAST", systemImage: "calendar")
+                            .font(.footnote)
+                            .padding(6)
+                        Divider()
+                    ForEach(dailyMeasurements, id: \.time) { dailyMeasurement in
+                        DailyView(day: dailyMeasurement.day, minTemperature: dailyMeasurement.formattedMinTemperature, maxTemperature: dailyMeasurement.formattedMaxTemperature, weatherSymbol: dailyMeasurement.weatherSymbol)
+                        Divider()
+                            .padding(.horizontal)
+                    }
                 }
+                .frame(maxWidth: 350)
+                .background(color)
+                .clipShape(.rect(cornerRadius: 10))
+                
+                
+                Spacer()
+                
+                VStack {
+                    Text("\(weather?.current.time.formatted() ?? "Error")")
+                    Text("Latitude: \(latitude)")
+                    Text("Longitude: \(longitude)")
+                }
+                .buttonStyle(.borderedProminent)
+//                .tint(.blue)
+                .padding()
             }
-            .clipShape(.rect(cornerRadius: 20))
-
-            
-            Spacer()
-            
-            VStack {
-                Text("\(weather?.current.time.formatted() ?? "Error")")
-                Text("Latitude: \(latitude)")
-                Text("Longitude: \(longitude)")
+                .scrollIndicators(.hidden)
+            .task {
+                await processWeather()
+                
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.brown)
-            .padding()
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .task {
-            await processWeather()
-            
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            Image(.pexelsToddTrapani4883821535162)
+            Image(.pexelsEberhardgross1366919)
                 .resizable()
                 .ignoresSafeArea()
         )
@@ -307,22 +334,3 @@ enum WeatherError: Error {
 //                 HourlyMeasurement(time: Date.now + 7, temp: 25.5, weatherCode: 71),
 //                 HourlyMeasurement(time: Date.now + 8, temp: 25.5, weatherCode: 95)]
 
-
-// Below code is for playing around with spacing so text aligns
-//            VStack {
-//                ScrollView(.horizontal) {
-//                    HStack(spacing: 0) {
-//                        ForEach(dummyData, id: \.time) { hourly in
-//
-//                            let image = weatherInterpretationCodes2[hourly.weatherCode]?[1] ?? "sun.max.fill"
-//                            let hour = hourly.time.formatted(date: .omitted, time: .shortened)
-//                            let hourlyTemperature = String(Int(hourly.temp.rounded()))
-//
-//                            HourlyView(image: image, hour: hour, hourlyTemperature: hourlyTemperature)
-//                        }
-//                    }
-//                }
-//                .scrollIndicators(.hidden)
-//                .frame(maxWidth: .infinity)
-//            }
-//            .background(.brown)

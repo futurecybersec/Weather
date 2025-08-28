@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct HourlyView: View {
-    let image: String
+    let weatherSymbol: String
     let hour: String
     let hourlyTemperature: String
 
@@ -25,32 +25,31 @@ struct HourlyView: View {
     
     
     var symbolVerticalPadding: CGFloat {
-        CGFloat(symbolVerticalPaddingDictionary[image] ?? 3)
+        CGFloat(symbolVerticalPaddingDictionary[weatherSymbol] ?? 3)
     }
     
     var body: some View {
         VStack {
             Text("\(hour)")
-                .bold()
             Spacer()
-            Image(systemName: image)
-                .font(.system(size: 30))
+            Image(systemName: weatherSymbol)
+                .font(.system(size: 25))
                 .symbolRenderingMode(.multicolor)
                 .padding(.vertical, symbolVerticalPadding)
             Spacer()
             Text("\(hourlyTemperature)º")
-                .bold()
         }
-        .frame(maxHeight: 90)
+        .frame(maxHeight: 100)
         .padding(.vertical, 6)
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 5)
     }
 }
 
 
 #Preview {
-    HourlyView(image: "sun.max.fill", hour: "8:00", hourlyTemperature: "25")
+    let color = Color(red: 0.365, green: 0.459, blue: 0.478, opacity: 0.9)
+    HourlyView(weatherSymbol: "sun.max.fill", hour: "8:00", hourlyTemperature: "25")
         .frame(width: 70, height: 120)
-        .background(.brown)
+        .background(color)
         .foregroundStyle(.white)
 }

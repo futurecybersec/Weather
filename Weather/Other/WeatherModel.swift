@@ -49,7 +49,7 @@ struct WeatherData: Codable {
             let timeStrings = try container.decode([String].self, forKey: .time)
             let formatterDaily = DateFormatter()
             formatterDaily.dateFormat = "yyyy-MM-dd"
-            formatterDaily.timeZone = TimeZone(secondsFromGMT: 0)
+//            formatterDaily.timeZone = TimeZone(secondsFromGMT: 0)
             self.time = timeStrings.compactMap { formatterDaily.date(from: $0) }
 
             self.temperature2MMax = try container.decode([Double].self, forKey: .temperature2MMax)

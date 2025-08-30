@@ -16,7 +16,7 @@
 
 //TODO: Change code so it only calls getCity if the users location has changed significantly
 
-//TODO: Times are out of sync when non UK location
+
 
 import CoreLocation
 import SwiftUI
@@ -27,11 +27,12 @@ struct MainView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var latitude: Double = 40.4167
     @State private var longitude: Double = 3.7033
+    @State private var locationTimeZone = TimeZone.current.identifier
     @State private var cityName = "--"
     @State private var isNight = false
     
     var endpoint: String {
-        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code&hourly=temperature_2m,weather_code,is_day&current=temperature_2m,weather_code&timezone=GMT&forecast_days=\(forecastDays)"
+        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code&hourly=temperature_2m,weather_code,is_day&current=temperature_2m,weather_code&timezone=\(locationTimeZone)&forecast_days=\(forecastDays)"
     }
         
     
@@ -195,8 +196,10 @@ struct MainView: View {
                 
                 VStack {
                     Text("\(weather?.current.time.formatted() ?? "Error")")
+                    Text("Date.now(): \(Date.now.formatted())")
                     Text("Latitude: \(latitude)")
                     Text("Longitude: \(longitude)")
+                    Text("Location Time Zone \(locationTimeZone)")
                 }
                 .buttonStyle(.borderedProminent)
                 //                .tint(.blue)
@@ -218,23 +221,13 @@ struct MainView: View {
     }
     
     func processWeather() async {
-        await getLocation()
+        await getCoordinates()
+        await getLocationDetails()
         await updateWeather()
-        await processCityName()
-    }
-    
-    func processCityName() async {
-        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        
-        if let cityName = await getCityName(for: coordinate) {
-            self.cityName = cityName
-        } else {
-            print("Could not determine city name for the given coordinates.")
-        }
     }
     
     // Use location manager to get latitude and longitude
-    func getLocation() async {
+    func getCoordinates() async {
         locationManager.checkLocationAuthorization()
         
         if let coordinate = locationManager.lastKnownLocation {
@@ -259,8 +252,7 @@ struct MainView: View {
     }
     // Get weather from using API
     func getWeather() async throws -> WeatherData {
-        // This gives the actual JSON. Paste into browser to view
-        
+        print(endpoint)
         // Convert endpoint to URL
         guard let url = URL(string: endpoint) else {
             throw WeatherError.invalidURL
@@ -276,7 +268,8 @@ struct MainView: View {
         do {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+//            formatter.timeZone = TimeZone(identifier: locationTimeZone.identifier)
+//            formatter.timeZone = TimeZone(secondsFromGMT: 0)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .formatted(formatter)
             decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -303,25 +296,21 @@ struct MainView: View {
     func debugValues() {
         print("debugDescription: \(weather.debugDescription)")
     }
-    
-    func processTime(time: String) -> [Substring] {
-        let dateAndTime = time.split(separator: "T")
-        return dateAndTime
-    }
-    
-    func getCityName(for coordinate: CLLocationCoordinate2D) async -> String? {
-        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+    // Obtain city name and timezone from coordinates
+    func getLocationDetails() async {
+        let location = CLLocation(latitude: latitude, longitude: longitude)
         do {
             let placemarks = try await CLGeocoder().reverseGeocodeLocation(location)
-            if let city = placemarks.first?.locality {//TODO: Use .timezone to fix time sync issue
-                return city
+            if let placemark = placemarks.first, let city = placemark.locality, let timeZone = placemark.timeZone {
+                self.cityName = city
+                self.locationTimeZone = timeZone.identifier
             } else {
-                print("Could not determine city name for the given coordinates.")
-                return nil
+                print("Could not determine location details for the given coordinates.")
+                return
             }
         } catch {
             print("Reverse geocoding failed: \(error)")
-            return nil
+            return
         }
     }
 }

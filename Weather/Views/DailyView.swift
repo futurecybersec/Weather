@@ -36,7 +36,6 @@ struct DailyView: View {
         .frame(maxWidth: 335)
         .foregroundStyle(.white)
         .padding(8)
-//        .background(.brown)
     }
 }
 

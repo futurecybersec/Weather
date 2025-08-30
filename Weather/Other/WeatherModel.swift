@@ -30,6 +30,7 @@ struct WeatherData: Codable {
         let time: [Date]
         let temperature2M: [Double]
         let weatherCode: [Int]
+        let isDay: [Int]
     }
     
     struct Daily: Codable {

@@ -10,11 +10,13 @@
 
 //TODO: Have a different background picture depending on weather
 
-//TODO: Change weather symbols for night time
-
-//TODO: Symbols in HourlyView still don't line up perfectly
-
 //TODO: Experiment with symbol animations
+
+//TODO: Add sunset and sunrise to HourlyView ** currently working on
+
+//TODO: Change code so it only calls getCity if the users location has changed significantly
+
+//TODO: Times are out of sync when non UK location
 
 import CoreLocation
 import SwiftUI
@@ -27,6 +29,11 @@ struct MainView: View {
     @State private var longitude: Double = 3.7033
     @State private var cityName = "--"
     @State private var isNight = false
+    
+    var endpoint: String {
+        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code&hourly=temperature_2m,weather_code,is_day&current=temperature_2m,weather_code&timezone=GMT&forecast_days=\(forecastDays)"
+    }
+        
     
     let color = Color(red: 0.365, green: 0.459, blue: 0.478, opacity: 0.9)
 
@@ -58,6 +65,7 @@ struct MainView: View {
         let time: Date
         let temperature: Double
         let weatherCode: Int
+        let isDay: Bool
         
         // Only display the hour 24 format
         var formattedTime: String {
@@ -69,7 +77,11 @@ struct MainView: View {
         }
         
         var weatherSymbol: String {
-            weatherInterpretationCodes[weatherCode]?[1] ?? "sun.max.fill"
+            if isDay {
+                weatherInterpretationCodes[weatherCode]?[1] ?? "sun.max.fill"
+            } else {
+                weatherInterpretationCodes[weatherCode]?[2] ?? "moon.stars.fill"
+            }
         }
     }
     
@@ -77,11 +89,12 @@ struct MainView: View {
     var timeAndTemperatures: [HourlyMeasurement] {
         var hourlyMeasurements: [HourlyMeasurement] = []
         
-        guard let times = weather?.hourly.time, let temps = weather?.hourly.temperature2M, let codes = weather?.hourly.weatherCode else { return [] }
+        guard let times = weather?.hourly.time, let temps = weather?.hourly.temperature2M, let codes = weather?.hourly.weatherCode, let isDayArray = weather?.hourly.isDay else { return [] }
         for (i, time) in times.enumerated() {
             let temp = temps[i]
             let code = codes[i]
-            let hourlyMeasurement = HourlyMeasurement(time: time, temperature: temp, weatherCode: code)
+            let isDay = isDayArray[i]
+            let hourlyMeasurement = HourlyMeasurement(time: time, temperature: temp, weatherCode: code, isDay: isDay == 1 ? true : false)
             hourlyMeasurements.append(hourlyMeasurement)
         }
         return hourlyMeasurements
@@ -135,16 +148,23 @@ struct MainView: View {
     }
     
     var body: some View {
-            VStack {
-                CurrentTemperatureView(cityName: cityName, currentTemperature: currentTemperature, currentWeatherDescription: currentWeatherDescription, currentHighTemperature: currentHighTemperature, currentLowTemperature: currentLowTemperature)
-                ScrollView {
-                VStack {
+        VStack {
+            CurrentTemperatureView(cityName: cityName, currentTemperature: currentTemperature, currentWeatherDescription: currentWeatherDescription, currentHighTemperature: currentHighTemperature, currentLowTemperature: currentLowTemperature)
+            ScrollView {
+                VStack(alignment: .leading) {
+                    Label("HOURLY FORECAST", systemImage: "clock")
+                        .font(.footnote)
+                        .padding([.leading, .top], 6)
+                    Divider()
+                        .padding(.horizontal)
                     ScrollView(.horizontal) {
-                        HStack(spacing: 0) {
-                            Spacer(minLength: 4)
-                            HourlyView(weatherSymbol: currentWeatherSymbolSmall, hour: "Now", hourlyTemperature: currentTemperature)
-                            ForEach(timeAndTemperaturesFromNowOn, id: \.time) { hourlyMeasurement in
-                                HourlyView(weatherSymbol: hourlyMeasurement.weatherSymbol, hour: hourlyMeasurement.formattedTime, hourlyTemperature: hourlyMeasurement.formattedTemperature)
+                        VStack {
+                            HStack(spacing: 0) {
+                                Spacer(minLength: 4)
+                                HourlyView(weatherSymbol: currentWeatherSymbolSmall, hour: "Now", hourlyTemperature: currentTemperature)
+                                ForEach(timeAndTemperaturesFromNowOn, id: \.time) { hourlyMeasurement in
+                                    HourlyView(weatherSymbol: hourlyMeasurement.weatherSymbol, hour: hourlyMeasurement.formattedTime, hourlyTemperature: hourlyMeasurement.formattedTemperature)
+                                }
                             }
                         }
                     }
@@ -154,12 +174,12 @@ struct MainView: View {
                 .frame(maxWidth: 350)
                 .background(color)
                 .clipShape(.rect(cornerRadius: 10))
-                    
-                    VStack(alignment: .leading, spacing: 0) {
-                        Label("10-DAY FORECAST", systemImage: "calendar")
-                            .font(.footnote)
-                            .padding(6)
-                        Divider()
+                
+                VStack(alignment: .leading, spacing: 0) {
+                    Label("10-DAY FORECAST", systemImage: "calendar")
+                        .font(.footnote)
+                        .padding(6)
+                    Divider()
                     ForEach(dailyMeasurements, id: \.time) { dailyMeasurement in
                         DailyView(day: dailyMeasurement.day, minTemperature: dailyMeasurement.formattedMinTemperature, maxTemperature: dailyMeasurement.formattedMaxTemperature, weatherSymbol: dailyMeasurement.weatherSymbol)
                         Divider()
@@ -179,10 +199,10 @@ struct MainView: View {
                     Text("Longitude: \(longitude)")
                 }
                 .buttonStyle(.borderedProminent)
-//                .tint(.blue)
+                //                .tint(.blue)
                 .padding()
             }
-                .scrollIndicators(.hidden)
+            .scrollIndicators(.hidden)
             .task {
                 await processWeather()
                 
@@ -240,7 +260,7 @@ struct MainView: View {
     // Get weather from using API
     func getWeather() async throws -> WeatherData {
         // This gives the actual JSON. Paste into browser to view
-        let endpoint = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code&hourly=temperature_2m,weather_code&current=temperature_2m,weather_code&timezone=GMT&forecast_days=\(forecastDays)"
+        
         // Convert endpoint to URL
         guard let url = URL(string: endpoint) else {
             throw WeatherError.invalidURL
@@ -291,21 +311,17 @@ struct MainView: View {
     
     func getCityName(for coordinate: CLLocationCoordinate2D) async -> String? {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        
-        return await withCheckedContinuation { continuation in
-            CLGeocoder().reverseGeocodeLocation(location) { placemarks, error in
-                guard error == nil else {
-                    print("Error in reverse geocoding: \(error!.localizedDescription)")
-                    continuation.resume(returning: nil)
-                    return
-                }
-                
-                if let placemark = placemarks?.first, let city = placemark.locality {
-                    continuation.resume(returning: city)
-                } else {
-                    continuation.resume(returning: nil)
-                }
+        do {
+            let placemarks = try await CLGeocoder().reverseGeocodeLocation(location)
+            if let city = placemarks.first?.locality {//TODO: Use .timezone to fix time sync issue
+                return city
+            } else {
+                print("Could not determine city name for the given coordinates.")
+                return nil
             }
+        } catch {
+            print("Reverse geocoding failed: \(error)")
+            return nil
         }
     }
 }
@@ -333,4 +349,5 @@ enum WeatherError: Error {
 //                 HourlyMeasurement(time: Date.now + 6, temp: 25.5, weatherCode: 65),
 //                 HourlyMeasurement(time: Date.now + 7, temp: 25.5, weatherCode: 71),
 //                 HourlyMeasurement(time: Date.now + 8, temp: 25.5, weatherCode: 95)]
+
 

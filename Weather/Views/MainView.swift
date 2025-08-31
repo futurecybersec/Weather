@@ -12,7 +12,7 @@
 
 //TODO: Experiment with symbol animations
 
-//TODO: Add sunset and sunrise to HourlyView ** currently working on
+//TODO: Add sunset and sunrise to HourlyView <- in progress
 
 //TODO: Change code so it only calls getCity if the users location has changed significantly
 
@@ -25,20 +25,33 @@ import SwiftUI
 struct MainView: View {
     @State private var weather: WeatherData?
     @StateObject private var locationManager = LocationManager()
-    @State private var latitude: Double = 40.4167
-    @State private var longitude: Double = 3.7033
+    @State private var latitude: Double = 0.0
+    @State private var longitude: Double = 0.0
     @State private var locationTimeZone = TimeZone.current.identifier
     @State private var cityName = "--"
     @State private var isNight = false
     
+    var sunrise: Date {// For sunrise symbol not yet completed
+        weather?.daily.sunrise.first ?? Date()//?.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) ?? "--:--"
+    }//
+    
+    var sunrises: [Date] {// For sunrise symbol not yet completed
+        weather?.daily.sunrise ?? []
+    }
+    
+    var sunsets: [Date] {
+        weather?.daily.sunset ?? []
+    }
+    
+    let forecastDays = 10
+    
     var endpoint: String {
-        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code&hourly=temperature_2m,weather_code,is_day&current=temperature_2m,weather_code&timezone=\(locationTimeZone)&forecast_days=\(forecastDays)"
+        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code,sunrise,sunset&hourly=temperature_2m,weather_code,is_day&current=temperature_2m,weather_code&timezone=\(locationTimeZone)&forecast_days=\(forecastDays)"
     }
         
     
     let color = Color(red: 0.365, green: 0.459, blue: 0.478, opacity: 0.9)
 
-    let forecastDays = 10
     
     var currentTemperature: String {
         String(Int(weather?.current.temperature2M.rounded() ?? 99))
@@ -62,31 +75,7 @@ struct MainView: View {
         return weatherInterpretationCodes[code]?[1] ?? "sun.max.fill"
     }
     
-    struct HourlyMeasurement {
-        let time: Date
-        let temperature: Double
-        let weatherCode: Int
-        let isDay: Bool
-        
-        // Only display the hour 24 format
-        var formattedTime: String {
-            time.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)))
-        }
-        
-        var formattedTemperature: String {
-            String(Int(temperature.rounded()))
-        }
-        
-        var weatherSymbol: String {
-            if isDay {
-                weatherInterpretationCodes[weatherCode]?[1] ?? "sun.max.fill"
-            } else {
-                weatherInterpretationCodes[weatherCode]?[2] ?? "moon.stars.fill"
-            }
-        }
-    }
-    
-    
+
     var timeAndTemperatures: [HourlyMeasurement] {
         var hourlyMeasurements: [HourlyMeasurement] = []
         
@@ -112,37 +101,21 @@ struct MainView: View {
         return hourlyMeasurements
     }
     
-    struct DailyMeasurement {
-        let time: Date
-        let minTemperature: Double
-        let maxTemperature: Double
-        let weatherCode: Int
-        
-        var day: String {
-            time.formatted(.dateTime.weekday(.abbreviated))
-        }
-        
-        var formattedMinTemperature: String {
-            String(Int(minTemperature.rounded()))
-        }
-        
-        var formattedMaxTemperature: String {
-            String(Int(maxTemperature.rounded()))
-        }
-        
-        var weatherSymbol: String {
-            weatherInterpretationCodes[weatherCode]?[1] ?? "sun.fill.max"
-        }
-    }
-    
     var dailyMeasurements: [DailyMeasurement] {
         var daily: [DailyMeasurement] = []
-        guard let times = weather?.daily.time, let minTemperatures = weather?.daily.temperature2MMin, let maxTemperatures = weather?.daily.temperature2MMax, let weatherCodes = weather?.daily.weatherCode else { return [] }
+        guard let times = weather?.daily.time,
+              let minTemperatures = weather?.daily.temperature2MMin,
+              let maxTemperatures = weather?.daily.temperature2MMax,
+              let weatherCodes = weather?.daily.weatherCode,
+              let sunrises = weather?.daily.sunrise,
+              let sunsets = weather?.daily.sunset else { return [] }
         for (i, time) in times.enumerated() {
             let minTemperature = minTemperatures[i]
             let maxTemperature = maxTemperatures[i]
             let weatherCode = weatherCodes[i]
-            let dailyMeasurement = DailyMeasurement(time: time, minTemperature: minTemperature, maxTemperature: maxTemperature, weatherCode: weatherCode)
+            let sunrise = sunrises[i]
+            let sunset = sunsets[i]
+            let dailyMeasurement = DailyMeasurement(time: time, minTemperature: minTemperature, maxTemperature: maxTemperature, weatherCode: weatherCode, sunrise: sunrise, sunset: sunset)
             daily.append(dailyMeasurement)
         }
         return daily
@@ -161,9 +134,29 @@ struct MainView: View {
                     ScrollView(.horizontal) {
                         VStack {
                             HStack(spacing: 0) {
+                                
                                 Spacer(minLength: 4)
+                                
                                 HourlyView(weatherSymbol: currentWeatherSymbolSmall, hour: "Now", hourlyTemperature: currentTemperature)
-                                ForEach(timeAndTemperaturesFromNowOn, id: \.time) { hourlyMeasurement in
+                                
+                                ForEach(timeAndTemperaturesFromNowOn.prefix(24), id: \.time) { hourlyMeasurement in
+                                    
+                                    if sunriseSunsetCheck(hourlyMeasurement: hourlyMeasurement, sunriseOrSunset: sunrises[0]) {
+                                        HourlyView(weatherSymbol: "sunrise.fill", hour: dateFormatter(date: sunrises[0]), hourlyTemperature: "Sunrise")
+                                    }
+                                    
+                                    if sunriseSunsetCheck(hourlyMeasurement: hourlyMeasurement, sunriseOrSunset: sunrises[1]) {
+                                        HourlyView(weatherSymbol: "sunrise.fill", hour: dateFormatter(date: sunrises[1]), hourlyTemperature: "Sunrise")
+                                    }
+                                    
+                                    if sunriseSunsetCheck(hourlyMeasurement: hourlyMeasurement, sunriseOrSunset: sunsets[0]) {
+                                        HourlyView(weatherSymbol: "sunset.fill", hour: dateFormatter(date: sunsets[0]), hourlyTemperature: "Sunset")
+                                    }
+                                    
+                                    if sunriseSunsetCheck(hourlyMeasurement: hourlyMeasurement, sunriseOrSunset: sunsets[1]) {
+                                        HourlyView(weatherSymbol: "sunset.fill", hour: dateFormatter(date: sunsets[1]), hourlyTemperature: "Sunset")
+                                    }
+
                                     HourlyView(weatherSymbol: hourlyMeasurement.weatherSymbol, hour: hourlyMeasurement.formattedTime, hourlyTemperature: hourlyMeasurement.formattedTemperature)
                                 }
                             }
@@ -191,7 +184,6 @@ struct MainView: View {
                 .background(color)
                 .clipShape(.rect(cornerRadius: 10))
                 
-                
                 Spacer()
                 
                 VStack {
@@ -200,9 +192,8 @@ struct MainView: View {
                     Text("Latitude: \(latitude)")
                     Text("Longitude: \(longitude)")
                     Text("Location Time Zone \(locationTimeZone)")
+                    Text("Sunrise: \(sunrise)")
                 }
-                .buttonStyle(.borderedProminent)
-                //                .tint(.blue)
                 .padding()
             }
             .scrollIndicators(.hidden)
@@ -218,6 +209,19 @@ struct MainView: View {
                 .resizable()
                 .ignoresSafeArea()
         )
+    }
+    // Format date in 24 hour format with hour and minutes
+    func dateFormatter(date: Date) -> String {
+        return date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    }
+    // Check if sunrise or sunset should be inserted
+    func sunriseSunsetCheck(hourlyMeasurement: HourlyMeasurement, sunriseOrSunset: Date) -> Bool {
+        let currentTime = hourlyMeasurement.time
+        if currentTime.timeIntervalSince(sunriseOrSunset) > 0 && currentTime.timeIntervalSince(sunriseOrSunset) < 3600 {
+            return true
+        } else {
+            return false
+        }
     }
     
     func processWeather() async {
@@ -268,8 +272,6 @@ struct MainView: View {
         do {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-//            formatter.timeZone = TimeZone(identifier: locationTimeZone.identifier)
-//            formatter.timeZone = TimeZone(secondsFromGMT: 0)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .formatted(formatter)
             decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -321,22 +323,6 @@ enum WeatherError: Error {
     case invalidData
 }
 
-
-
-
-
 #Preview {
     MainView()
 }
-
-//let dummyData = [HourlyMeasurement(time: Date.now, temp: 25.5, weatherCode: 0),
-//                 HourlyMeasurement(time: Date.now + 1, temp: 25.5, weatherCode: 2),
-//                 HourlyMeasurement(time: Date.now + 2, temp: 25.5, weatherCode: 3),
-//                 HourlyMeasurement(time: Date.now + 3, temp: 25.5, weatherCode: 45),
-//                 HourlyMeasurement(time: Date.now + 4, temp: 25.5, weatherCode: 51),
-//                 HourlyMeasurement(time: Date.now + 5, temp: 25.5, weatherCode: 61),
-//                 HourlyMeasurement(time: Date.now + 6, temp: 25.5, weatherCode: 65),
-//                 HourlyMeasurement(time: Date.now + 7, temp: 25.5, weatherCode: 71),
-//                 HourlyMeasurement(time: Date.now + 8, temp: 25.5, weatherCode: 95)]
-
-

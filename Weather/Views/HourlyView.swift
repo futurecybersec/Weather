@@ -30,14 +30,14 @@ struct HourlyView: View {
     
     var body: some View {
         VStack {
-            Text("\(hour)")
+            Text(hour)
             Spacer()
             Image(systemName: weatherSymbol)
                 .font(.system(size: 25))
                 .symbolRenderingMode(.multicolor)
                 .padding(.vertical, symbolVerticalPadding)
             Spacer()
-            Text("\(hourlyTemperature)º")
+            Text(hourlyTemperature)
         }
         .frame(maxHeight: 100)
         .padding(.vertical, 6)

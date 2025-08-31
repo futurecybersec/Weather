@@ -38,10 +38,12 @@ struct WeatherData: Codable {
         let temperature2MMax: [Double]
         let temperature2MMin: [Double]
         let weatherCode: [Int]
+        let sunrise: [Date]
+        let sunset: [Date]
         
         // Custom decoding for the different date format
         private enum CodingKeys: String, CodingKey {
-            case time, temperature2MMax, temperature2MMin, weatherCode
+            case time, temperature2MMax, temperature2MMin, weatherCode, sunrise, sunset
         }
         
         init(from decoder: Decoder) throws {
@@ -55,6 +57,8 @@ struct WeatherData: Codable {
             self.temperature2MMax = try container.decode([Double].self, forKey: .temperature2MMax)
             self.temperature2MMin = try container.decode([Double].self, forKey: .temperature2MMin)
             self.weatherCode = try container.decode([Int].self, forKey: .weatherCode)
+            self.sunrise = try container.decode([Date].self, forKey: .sunrise)
+            self.sunset = try container.decode([Date].self, forKey: .sunset)
         }
     }
 }

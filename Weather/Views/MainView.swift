@@ -8,19 +8,26 @@
 
 //TODO: Location and weather do not update after initial allow share location request. It seems to work fine after that.
 
-//TODO: Have a different background picture depending on weather
-
 //TODO: Experiment with symbol animations
 
-//TODO: Add sunset and sunrise to HourlyView <- in progress
+//TODO: Change code so it only updates performs reverse geo if the user's location has changed significantly
 
-//TODO: Change code so it only calls getCity if the users location has changed significantly
+//TODO: refresh weather every 15 minutes?
 
-
+//TODO: Fade views when scrolling up and shrink current view
 
 import CoreLocation
 import SwiftUI
 
+struct DividerView: View {
+    let isDay: Bool
+    
+    var body: some View {
+        Divider()
+            .overlay(isDay ? .gray : .pink)
+            .opacity(isDay ? 1 : 0.6)
+    }
+}
 
 struct MainView: View {
     @State private var weather: WeatherData?
@@ -29,13 +36,14 @@ struct MainView: View {
     @State private var longitude: Double = 0.0
     @State private var locationTimeZone = TimeZone.current.identifier
     @State private var cityName = "--"
-    @State private var isNight = false
+    @State private var isCurrentlyDay = true
     
-    var sunrise: Date {// For sunrise symbol not yet completed
-        weather?.daily.sunrise.first ?? Date()//?.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) ?? "--:--"
-    }//
     
-    var sunrises: [Date] {// For sunrise symbol not yet completed
+    let backgroundImages: [ImageResource] = [ImageResource.pexelsEberhardgross1366919, ImageResource.pexelsBrakou1723637]
+    
+    let colors = [Color(red: 0.365, green: 0.459, blue: 0.478, opacity: 0.9), Color(red: 0.427, green: 0.259, blue: 0.243, opacity: 0.4)]
+    
+    var sunrises: [Date] {
         weather?.daily.sunrise ?? []
     }
     
@@ -46,7 +54,7 @@ struct MainView: View {
     let forecastDays = 10
     
     var endpoint: String {
-        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code,sunrise,sunset&hourly=temperature_2m,weather_code,is_day&current=temperature_2m,weather_code&timezone=\(locationTimeZone)&forecast_days=\(forecastDays)"
+        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&daily=temperature_2m_min,temperature_2m_max,weather_code,sunrise,sunset&hourly=temperature_2m,weather_code,is_day&current=temperature_2m,weather_code,is_day&timezone=\(locationTimeZone)&forecast_days=\(forecastDays)"
     }
         
     
@@ -124,13 +132,15 @@ struct MainView: View {
     var body: some View {
         VStack {
             CurrentTemperatureView(cityName: cityName, currentTemperature: currentTemperature, currentWeatherDescription: currentWeatherDescription, currentHighTemperature: currentHighTemperature, currentLowTemperature: currentLowTemperature)
+            Button("Toggle Day/Night") {
+                isCurrentlyDay.toggle()
+            }
             ScrollView {
                 VStack(alignment: .leading) {
                     Label("HOURLY FORECAST", systemImage: "clock")
                         .font(.footnote)
                         .padding([.leading, .top], 6)
-                    Divider()
-                        .padding(.horizontal)
+                    DividerView(isDay: isCurrentlyDay)
                     ScrollView(.horizontal) {
                         VStack {
                             HStack(spacing: 0) {
@@ -166,22 +176,22 @@ struct MainView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .frame(maxWidth: 350)
-                .background(color)
+                .background(isCurrentlyDay ? colors[0] : colors[1])
                 .clipShape(.rect(cornerRadius: 10))
                 
                 VStack(alignment: .leading, spacing: 0) {
                     Label("10-DAY FORECAST", systemImage: "calendar")
                         .font(.footnote)
                         .padding(6)
-                    Divider()
+                    DividerView(isDay: isCurrentlyDay)
                     ForEach(dailyMeasurements, id: \.time) { dailyMeasurement in
                         DailyView(day: dailyMeasurement.day, minTemperature: dailyMeasurement.formattedMinTemperature, maxTemperature: dailyMeasurement.formattedMaxTemperature, weatherSymbol: dailyMeasurement.weatherSymbol)
-                        Divider()
+                        DividerView(isDay: isCurrentlyDay)
                             .padding(.horizontal)
                     }
                 }
                 .frame(maxWidth: 350)
-                .background(color)
+                .background(isCurrentlyDay ? colors[0] : colors[1])
                 .clipShape(.rect(cornerRadius: 10))
                 
                 Spacer()
@@ -192,7 +202,6 @@ struct MainView: View {
                     Text("Latitude: \(latitude)")
                     Text("Longitude: \(longitude)")
                     Text("Location Time Zone \(locationTimeZone)")
-                    Text("Sunrise: \(sunrise)")
                 }
                 .padding()
             }
@@ -204,8 +213,7 @@ struct MainView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(
-            Image(.pexelsEberhardgross1366919)
+        .background(Image(isCurrentlyDay ? backgroundImages[0] : backgroundImages[1])
                 .resizable()
                 .ignoresSafeArea()
         )
@@ -228,6 +236,11 @@ struct MainView: View {
         await getCoordinates()
         await getLocationDetails()
         await updateWeather()
+        if weather?.current.isDay == 1 {
+            isCurrentlyDay = true
+        } else {
+            isCurrentlyDay = false
+        }
     }
     
     // Use location manager to get latitude and longitude
